@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Transaction Registry</h1>
+        <div class="page-subtitle">Inspect historical ledgers and ingest new wallet activities.</div>
+    </div>
+</div>
+
+<div class="alerts-layout" style="grid-template-columns: 1fr 1.8fr;">
+    <!-- Ingestion Panel -->
+    <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+            Manual Transaction Entry
+        </h3>
+        
+        <form action="{{ url_for('transactions') }}" method="POST">
+            <div class="form-group">
+                <label for="sender_wallet">Sender Wallet Address<span class="hint-icon" data-hint="Sender mobile wallet address/number, e.g. +263771111111">i</span></label>
+                <input type="text" id="sender_wallet" name="sender_wallet" class="form-control" placeholder="+263771111111" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="recipient_wallet">Recipient Wallet Address<span class="hint-icon" data-hint="Recipient mobile wallet address/number, e.g. +263772222222">i</span></label>
+                <input type="text" id="recipient_wallet" name="recipient_wallet" class="form-control" placeholder="+263772222222" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sender_name">Sender Name<span class="hint-icon" data-hint="Full name of the sender, screened against sanctions watchlists.">i</span></label>
+                    <input type="text" id="sender_name" name="sender_name" class="form-control" placeholder="e.g. Viktor Bout">
+                </div>
+                
+                <div class="form-group">
+                    <label for="recipient_name">Recipient Name<span class="hint-icon" data-hint="Full name of the recipient, screened against sanctions watchlists.">i</span></label>
+                    <input type="text" id="recipient_name" name="recipient_name" class="form-control" placeholder="e.g. Vladimir Putin">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="amount">Amount<span class="hint-icon" data-hint="Value/Amount of transfer in selected currency">i</span></label>
+                    <input type="number" step="0.01" min="0.10" id="amount" name="amount" class="form-control" placeholder="100.00" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="currency">Currency<span class="hint-icon" data-hint="Select the transaction currency: USD, ZWG (Zimbabwe Gold), or ZAR (South African Rand)">i</span></label>
+                    <select id="currency" name="currency" class="form-control">
+                        <option value="USD">USD</option>
+                        <option value="ZWG">ZWG</option>
+                        <option value="ZAR">ZAR</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="payment_type">Payment Type<span class="hint-icon" data-hint="Method: Peer-to-Peer (P2P), Cash-Out, or Merchant pay">i</span></label>
+                <select id="payment_type" name="payment_type" class="form-control">
+                    <option value="P2P">Peer-to-Peer (P2P)</option>
+                    <option value="Cash-Out">Cash-Out</option>
+                    <option value="Merchant">Merchant Payment</option>
+                </select>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="is_unfamiliar">Unfamiliar Recipient?<span class="hint-icon" data-hint="Has this sender ever transferred money to this recipient wallet before?">i</span></label>
+                    <select id="is_unfamiliar" name="is_unfamiliar" class="form-control">
+                        <option value="0">No (Known Contact)</option>
+                        <option value="1">Yes (New Wallet Link)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="is_new_device">New Device ID?<span class="hint-icon" data-hint="Is this transfer executed from a new/unregistered device?">i</span></label>
+                    <select id="is_new_device" name="is_new_device" class="form-control">
+                        <option value="0">No (Known Hardware)</option>
+                        <option value="1">Yes (First-time Login)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="account_age_days">Account Age (Days)<span class="hint-icon" data-hint="Age of the sender wallet in days since registration">i</span></label>
+                <input type="number" id="account_age_days" name="account_age_days" class="form-control" value="365" min="1" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">Evaluate & Ingest</button>
+        </form>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="card" style="padding: 1.5rem 0;">
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.25rem; padding: 0 1.5rem 0.5rem 1.5rem; border-bottom: 1px solid var(--border);">
+            Transaction Ledgers
+        </h3>
+        
+        <!-- Filters Form -->
+        <form method="GET" action="{{ url_for('transactions') }}" style="display: flex; gap: 0.75rem; padding: 0 1.5rem 1.25rem 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 130px;">
+                <label for="filter_currency" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--gray-dark); margin-bottom: 0.25rem;">Currency</label>
+                <select id="filter_currency" name="currency" class="form-control" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                    <option value="">All Currencies</option>
+                    <option value="USD" {{ 'selected' if selected_currency == 'USD' else '' }}>USD</option>
+                    <option value="ZWG" {{ 'selected' if selected_currency == 'ZWG' else '' }}>ZWG</option>
+                    <option value="ZAR" {{ 'selected' if selected_currency == 'ZAR' else '' }}>ZAR</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 130px;">
+                <label for="filter_risk" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--gray-dark); margin-bottom: 0.25rem;">Risk Level</label>
+                <select id="filter_risk" name="risk_level" class="form-control" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                    <option value="">All Risks</option>
+                    <option value="Low" {{ 'selected' if selected_risk == 'Low' else '' }}>Low</option>
+                    <option value="Medium" {{ 'selected' if selected_risk == 'Medium' else '' }}>Medium</option>
+                    <option value="High" {{ 'selected' if selected_risk == 'High' else '' }}>High</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 130px;">
+                <label for="filter_type" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--gray-dark); margin-bottom: 0.25rem;">Payment Type</label>
+                <select id="filter_type" name="payment_type" class="form-control" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                    <option value="">All Types</option>
+                    <option value="P2P" {{ 'selected' if selected_type == 'P2P' else '' }}>P2P</option>
+                    <option value="Cash-Out" {{ 'selected' if selected_type == 'Cash-Out' else '' }}>Cash-Out</option>
+                    <option value="Merchant" {{ 'selected' if selected_type == 'Merchant' else '' }}>Merchant</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.45rem 1rem; font-size: 0.8rem;">Apply</button>
+                <a href="{{ url_for('transactions') }}" class="btn btn-secondary btn-sm" style="padding: 0.45rem 1rem; border-color: var(--border); font-size: 0.8rem;">Reset</a>
+            </div>
+        </form>
+        
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="padding-left:1.5rem;">Tx ID</th>
+                        <th>Timestamp</th>
+                        <th>Sender / Recipient</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Risk Score</th>
+                        <th>Risk Level</th>
+                        <th style="padding-right:1.5rem;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions.items %}
+                    <tr>
+                        <td style="font-weight: 600; padding-left:1.5rem; color: var(--primary);">{{ tx.transaction_id }}</td>
+                        <td style="font-size: 0.8rem; color: var(--gray-dark);">{{ tx.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td style="font-size: 0.85rem;">
+                            <div style="font-weight:600; color: var(--primary);">
+                                From: <span style="font-weight:400; color:var(--black);">{{ tx.sender_name }}</span> 
+                                <span style="font-family:monospace; color:var(--gray-dark); font-size:0.75rem;">({{ tx.sender_wallet }})</span>
+                            </div>
+                            <div style="color:var(--gray-dark); font-weight:600;">
+                                To: <span style="font-weight:400; color:var(--black);">{{ tx.recipient_name }}</span> 
+                                <span style="font-family:monospace; font-size:0.75rem; color:var(--gray-dark);">({{ tx.recipient_wallet }})</span>
+                            </div>
+                        </td>
+                        <td style="font-size: 0.8rem; font-weight:500;">{{ tx.payment_type }}</td>
+                        <td style="font-weight: 700; color: var(--black);">
+                            {{ "{:,.2f}".format(tx.amount) }} {{ tx.currency }}
+                        </td>
+                        <td style="font-family: monospace;">{{ "{:.2f}%".format(tx.risk_score * 100) }}</td>
+                        <td>
+                            <span class="badge badge-{{ tx.risk_level.lower() }}">{{ tx.risk_level }}</span>
+                        </td>
+                        <td style="padding-right:1.5rem;">
+                            <span class="badge badge-{{ tx.status.lower().replace(' ', '_') }}">{{ tx.status }}</span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--gray-dark); padding: 2rem 0;">No transactions found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if transactions.pages > 1 %}
+        <div class="pagination" style="padding: 0 1.5rem;">
+            {% if transactions.has_prev %}
+                <a href="{{ url_for('transactions', page=transactions.prev_num, currency=selected_currency, risk_level=selected_risk, payment_type=selected_type) }}">&larr; Previous</a>
+            {% else %}
+                <span style="color:var(--border); cursor:not-allowed;">&larr; Previous</span>
+            {% endif %}
+            
+            <span class="active">{{ transactions.page }} of {{ transactions.pages }}</span>
+            
+            {% if transactions.has_next %}
+                <a href="{{ url_for('transactions', page=transactions.next_num, currency=selected_currency, risk_level=selected_risk, payment_type=selected_type) }}">Next &rarr;</a>
+            {% else %}
+                <span style="color:var(--border); cursor:not-allowed;">Next &rarr;</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

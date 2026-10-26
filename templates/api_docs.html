@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}API Documentation - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Pluggable API Gateway</h1>
+        <div class="page-subtitle">Connect mobile money systems (EcoCash, OneMoney) for real-time transaction screening.</div>
+    </div>
+</div>
+
+<div class="api-docs-grid">
+    <!-- Left: API Specs -->
+    <div class="card">
+        <h3 style="font-size: 1.15rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.25rem;">
+            Real-Time Screening API
+        </h3>
+        
+        <p style="font-size: 0.9rem; color: var(--gray-dark); margin-bottom: 1.5rem;">
+            Mobile money platforms submit raw transaction payloads to this endpoint. The screening engine computes transaction velocity and daily volume in real-time from past logs, runs the active machine learning classifier, saves the record, and returns a transaction recommendation.
+        </p>
+
+        <!-- Endpoint URL -->
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+            <span class="method-badge">POST</span>
+            <span style="font-family: monospace; font-size: 0.95rem; font-weight: 600; color: var(--black); background: var(--gray-light); padding: 0.35rem 0.75rem; border-radius: 4px; border: 1px solid var(--border); width: 100%;">
+                /api/v1/evaluate-transaction
+            </span>
+        </div>
+
+        <!-- Request Body -->
+        <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--gray-dark); margin-bottom: 0.75rem;">Request Payloads (JSON)</h4>
+        <div class="code-block">{
+  "sender_wallet": "+263771234567",
+  "recipient_wallet": "+263778888888",
+  "amount": 250.00,
+  "currency": "USD",
+  "payment_type": "P2P",
+  "is_unfamiliar": 1,
+  "is_new_device": 0,
+  "account_age_days": 180
+}</div>
+
+        <!-- Response Body -->
+        <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--gray-dark); margin-bottom: 0.75rem;">Response Schema (JSON)</h4>
+        <div class="code-block">{
+  "success": true,
+  "transaction_id": "TX-101004",
+  "decision": "APPROVED",
+  "risk_score": 0.0845,
+  "risk_level": "LOW",
+  "reasons": [],
+  "evaluation_timestamp": "2026-08-28 13:58:12",
+  "active_model_used": "Random Forest"
+}</div>
+
+        <!-- Decision Logic -->
+        <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--gray-dark); margin-bottom: 0.5rem;">Decision Recommendations</h4>
+        <ul style="font-size: 0.85rem; color: var(--gray-dark); padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+            <li><strong>APPROVED (Low Risk):</strong> Transaction is cleared immediately.</li>
+            <li><strong>FLAGGED (Medium Risk):</strong> Transaction completes, but triggers a dashboard alert for analyst review.</li>
+            <li><strong>BLOCKED (High Risk):</strong> Transaction is stopped. Outbound wallets may be temporarily locked pending review.</li>
+        </ul>
+    </div>
+
+    <!-- Right: Interactive Harness -->
+    <div class="card">
+        <h3 style="font-size: 1.15rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.25rem;">
+            Interactive API Sandbox
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 1.25rem;">
+            Simulate standard payloads to observe how the active classifier screens transaction vectors.
+        </p>
+
+        <!-- Template Selector -->
+        <div class="form-group">
+            <label for="template-select">Load Scenario Template</label>
+            <select id="template-select" class="form-control" onchange="loadScenarioTemplate()">
+                <option value="legit">Legitimate P2P Transfer (Low Risk)</option>
+                <option value="velocity">Rapid Structuring Cash-Out (High Risk)</option>
+                <option value="amount">Large Off-hours Merchant Payment (High Risk)</option>
+                <option value="new_dev">New Device to Unfamiliar Wallet (Medium Risk)</option>
+            </select>
+        </div>
+
+        <!-- Interactive Form -->
+        <form id="api-sandbox-form" onsubmit="runSandboxTest(event)">
+            <div class="form-group">
+                <label for="api_sender">Sender Wallet ID<span class="hint-icon" data-hint="Mobile phone number formatting, e.g. +263773333333">i</span></label>
+                <input type="text" id="api_sender" class="form-control" value="+263773333333" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="api_recipient">Recipient Wallet ID<span class="hint-icon" data-hint="Link target mobile wallet number">i</span></label>
+                    <input type="text" id="api_recipient" class="form-control" value="+263774444444" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="api_payment_type">Payment Type<span class="hint-icon" data-hint="Transfer channel class: P2P, Cash-Out, or Merchant">i</span></label>
+                    <select id="api_payment_type" class="form-control">
+                        <option value="P2P">P2P</option>
+                        <option value="Cash-Out">Cash-Out</option>
+                        <option value="Merchant">Merchant</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="api_amount">Amount<span class="hint-icon" data-hint="Value of transfer in selected currency">i</span></label>
+                    <input type="number" step="0.01" min="0.10" id="api_amount" class="form-control" value="25.00" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="api_currency">Currency<span class="hint-icon" data-hint="Select the transaction currency: USD, ZWG, or ZAR">i</span></label>
+                    <select id="api_currency" class="form-control">
+                        <option value="USD">USD</option>
+                        <option value="ZWG">ZWG</option>
+                        <option value="ZAR">ZAR</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="api_unfamiliar">Unfamiliar Recipient?<span class="hint-icon" data-hint="Flag if recipient wallet is new/unlinked to sender history">i</span></label>
+                    <select id="api_unfamiliar" class="form-control">
+                        <option value="0">No (Known Contact)</option>
+                        <option value="1">Yes (New Wallet Link)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="api_new_device">New Device ID?<span class="hint-icon" data-hint="Flag if executed from a new/unregistered device hardware">i</span></label>
+                    <select id="api_new_device" class="form-control">
+                        <option value="0">No (Known Hardware)</option>
+                        <option value="1">Yes (First-time Login)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="api_account_age">Account Age (Days)<span class="hint-icon" data-hint="Age of sender wallet since registration date">i</span></label>
+                <input type="number" id="api_account_age" class="form-control" value="240" min="1" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 1.5rem;">
+                Dispatch API Call
+            </button>
+        </form>
+
+        <!-- API Output -->
+        <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--gray-dark); margin-bottom: 0.5rem;">API Response Output</h4>
+        <div class="code-block" id="api-output-block" style="min-height: 120px; background-color: #0b0f19; color: #a7f3d0; border: 1px solid #1e293b;">
+// Responses will render here in real time...
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const scenarios = {
+        legit: {
+            sender: "+263773333333",
+            recipient: "+263774444444",
+            type: "P2P",
+            amount: "25.00",
+            currency: "USD",
+            unfamiliar: "0",
+            new_device: "0",
+            age: "240"
+        },
+        velocity: {
+            sender: "+263779999999",
+            recipient: "+263718888888",
+            type: "Cash-Out",
+            amount: "180.00",
+            currency: "USD",
+            unfamiliar: "1",
+            new_device: "1",
+            age: "15"
+            // Note: velocity_1h will be simulated dynamically in DB based on multiple fast inputs
+        },
+        amount: {
+            sender: "+263781111111",
+            recipient: "+263735555555",
+            type: "Merchant",
+            amount: "15000.00",
+            currency: "USD",
+            unfamiliar: "1",
+            new_device: "1",
+            age: "8"
+        },
+        new_dev: {
+            sender: "+263775555555",
+            recipient: "+263782222222",
+            type: "P2P",
+            amount: "450.00",
+            currency: "USD",
+            unfamiliar: "1",
+            new_device: "1",
+            age: "310"
+        }
+    };
+
+    function loadScenarioTemplate() {
+        const key = document.getElementById('template-select').value;
+        const data = scenarios[key];
+        
+        if (data) {
+            document.getElementById('api_sender').value = data.sender;
+            document.getElementById('api_recipient').value = data.recipient;
+            document.getElementById('api_payment_type').value = data.type;
+            document.getElementById('api_amount').value = data.amount;
+            document.getElementById('api_currency').value = data.currency;
+            document.getElementById('api_unfamiliar').value = data.unfamiliar;
+            document.getElementById('api_new_device').value = data.new_device;
+            document.getElementById('api_account_age').value = data.age;
+        }
+    }
+
+    function runSandboxTest(event) {
+        event.preventDefault();
+        
+        const payload = {
+            sender_wallet: document.getElementById('api_sender').value,
+            recipient_wallet: document.getElementById('api_recipient').value,
+            payment_type: document.getElementById('api_payment_type').value,
+            amount: parseFloat(document.getElementById('api_amount').value),
+            currency: document.getElementById('api_currency').value,
+            is_unfamiliar: parseInt(document.getElementById('api_unfamiliar').value),
+            is_new_device: parseInt(document.getElementById('api_new_device').value),
+            account_age_days: parseInt(document.getElementById('api_account_age').value)
+        };
+        
+        const outputBlock = document.getElementById('api-output-block');
+        outputBlock.textContent = "// Dispatching request payload to sentinel API...";
+        
+        fetch('/api/v1/evaluate-transaction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            outputBlock.textContent = JSON.stringify(data, null, 2);
+            // Flash color based on decision
+            if (data.decision === 'APPROVED') {
+                outputBlock.style.borderColor = '#10b981'; // Green
+            } else if (data.decision === 'FLAGGED') {
+                outputBlock.style.borderColor = '#f59e0b'; // Orange
+            } else {
+                outputBlock.style.borderColor = '#ef4444'; // Red
+            }
+        })
+        .catch(error => {
+            outputBlock.textContent = `Error calling API:\n${error.toString()}`;
+            outputBlock.style.borderColor = '#ef4444';
+        });
+    }
+</script>
+{% endblock %}

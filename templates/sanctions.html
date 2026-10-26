@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Sanctions Registry - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">International Sanctions Screen</h1>
+        <div class="page-subtitle">Verify names against global watchlists including US OFAC SDN, UN Security Council, and EU programs.</div>
+    </div>
+    
+    <div>
+        <form action="{{ url_for('sync_sanctions') }}" method="POST" onsubmit="document.getElementById('sync-btn').textContent='Downloading Treasury Feed...'; document.getElementById('sync-btn').disabled=True;">
+            <button type="submit" id="sync-btn" class="btn btn-primary btn-sm">
+                Sync OFAC SDN Feed
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="alerts-layout" style="grid-template-columns: 1fr 2fr;">
+    <!-- Left: Search Box -->
+    <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+            Individual Lookup
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 1.25rem;">
+            Search name combinations to check matches against the cached sanctions lists.
+        </p>
+        
+        <form method="GET" action="{{ url_for('sanctions') }}">
+            <div class="form-group">
+                <label for="q">Name Query</label>
+                <input type="text" id="q" name="q" class="form-control" placeholder="e.g. Viktor Bout" value="{{ search_query or '' }}" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Check Watchlists</button>
+            {% if search_query %}
+                <a href="{{ url_for('sanctions') }}" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">Reset Filter</a>
+            {% endif %}
+        </form>
+        
+        <!-- Explanation Info -->
+        <div style="margin-top: 1.5rem; background-color: var(--bg); border: 1px solid var(--border); padding: 1rem; border-radius: 4px; font-size: 0.8rem; color: var(--gray-dark);">
+            <h4 style="font-weight: 600; color: var(--black); margin-bottom: 0.25rem;">Compliance Guideline:</h4>
+            <p>
+                Transactions involving sanctioned individuals are prohibited. Any match on names blocks outgoing money routing immediately.
+            </p>
+        </div>
+    </div>
+
+    <!-- Right: Sanctions Database Table -->
+    <div class="card" style="padding: 1.5rem 0;">
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.25rem; padding: 0 1.5rem 0.5rem 1.5rem; border-bottom: 1px solid var(--border);">
+            Sanctioned Registry Database ({{ individuals.total }} records)
+        </h3>
+        
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="padding-left: 1.5rem; width: 30%;">Full Name</th>
+                        <th style="width: 25%;">Registry Source</th>
+                        <th style="padding-right: 1.5rem; width: 45%;">Designation Reason / Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ind in individuals.items %}
+                    <tr style="background-color: {{ '#fef2f2' if search_query else 'transparent' }};">
+                        <td style="font-weight: 700; padding-left: 1.5rem; color: var(--primary);">
+                            {{ ind.name }}
+                        </td>
+                        <td>
+                            <span class="badge badge-high" style="background-color: var(--border); color: var(--gray-dark); border: 1px solid var(--border);">
+                                {{ ind.source }}
+                            </span>
+                        </td>
+                        <td style="padding-right: 1.5rem; font-size: 0.8rem; color: var(--gray-dark);">
+                            {{ ind.reason or 'No specific description remarks.' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--gray-dark); padding: 2rem 0;">No matching sanctioned profiles found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if individuals.pages > 1 %}
+        <div class="pagination" style="padding: 0 1.5rem; margin-top: 1.5rem;">
+            {% if individuals.has_prev %}
+                <a href="{{ url_for('sanctions', page=individuals.prev_num, q=search_query) }}">&larr; Previous</a>
+            {% else %}
+                <span style="color:var(--border); cursor:not-allowed;">&larr; Previous</span>
+            {% endif %}
+            
+            <span class="active">{{ individuals.page }} of {{ individuals.pages }}</span>
+            
+            {% if individuals.has_next %}
+                <a href="{{ url_for('sanctions', page=individuals.next_num, q=search_query) }}">Next &rarr;</a>
+            {% else %}
+                <span style="color:var(--border); cursor:not-allowed;">Next &rarr;</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

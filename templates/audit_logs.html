@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Trail - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">System Audit Trails</h1>
+        <div class="page-subtitle">Security logging and tracking for compliance and administrator review.</div>
+    </div>
+</div>
+
+<div class="card" style="padding: 1.5rem 0;">
+    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1.25rem; padding: 0 1.5rem 0.5rem 1.5rem; border-bottom: 1px solid var(--border);">
+        Event Logs
+    </h3>
+    
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="padding-left: 1.5rem;">Timestamp</th>
+                    <th>Operator</th>
+                    <th>Event Description</th>
+                    <th style="padding-right: 1.5rem;">IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs.items %}
+                <tr>
+                    <td style="padding-left: 1.5rem; font-family: monospace; font-size: 0.85rem;">
+                        {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; font-weight:600;">
+                            {% if log.username == 'SYSTEM' %}
+                                SYSTEM
+                            {% elif log.username == 'API_GATEWAY' %}
+                                API_GATEWAY
+                            {% else %}
+                                {{ log.username }}
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td style="font-size: 0.9rem; color: var(--black);">{{ log.event }}</td>
+                    <td style="padding-right: 1.5rem; font-family: monospace; font-size: 0.8rem; color: var(--gray-dark);">
+                        {{ log.ip_address or 'N/A' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--gray-dark); padding: 2rem 0;">No audit records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if logs.pages > 1 %}
+    <div class="pagination" style="padding: 0 1.5rem;">
+        {% if logs.has_prev %}
+            <a href="{{ url_for('audit_logs', page=logs.prev_num) }}">&larr; Previous</a>
+        {% else %}
+            <span style="color:var(--border); cursor:not-allowed;">&larr; Previous</span>
+        {% endif %}
+        
+        <span class="active">{{ logs.page }} of {{ logs.pages }}</span>
+        
+        {% if logs.has_next %}
+            <a href="{{ url_for('audit_logs', page=logs.next_num) }}">Next &rarr;</a>
+        {% else %}
+            <span style="color:var(--border); cursor:not-allowed;">Next &rarr;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

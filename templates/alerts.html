@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Investigations - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Alert Queue & Investigations</h1>
+        <div class="page-subtitle">Review flagged transactions, assign cases, and log resolutions.</div>
+    </div>
+    
+    <!-- Status Filter Navigation -->
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{{ url_for('alerts', status='Pending') }}" class="btn btn-sm {{ 'btn-primary' if active_status == 'Pending' else 'btn-secondary' }}">
+            Pending Queue ({{ alerts | length if active_status == 'Pending' else 'View' }})
+        </a>
+        <a href="{{ url_for('alerts', status='Under Review') }}" class="btn btn-sm {{ 'btn-primary' if active_status == 'Under Review' else 'btn-secondary' }}">
+            Active Reviews
+        </a>
+        <a href="{{ url_for('alerts', status='Closed') }}" class="btn btn-sm {{ 'btn-primary' if active_status == 'Closed' else 'btn-secondary' }}">
+            Closed Cases
+        </a>
+    </div>
+</div>
+
+<div class="alerts-layout">
+    <!-- Left Column: Master List -->
+    <div class="alerts-list-container">
+        <div style="padding: 1rem; background-color: var(--bg); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--gray-dark); border-bottom: 1px solid var(--border);">
+            {{ active_status }} Alerts ({{ alerts | length }})
+        </div>
+        
+        {% if alerts %}
+            {% for alert in alerts %}
+            <a href="{{ url_for('alerts', status=active_status, id=alert.id) }}" class="alert-item {{ 'active' if selected_alert and alert.id == selected_alert.id else '' }}" style="display: block; text-decoration: none; color: inherit;">
+                <div class="alert-item-header">
+                    <span class="alert-item-id">{{ alert.transaction_id }}</span>
+                    <span class="badge badge-{{ alert.risk_level.lower() }}">{{ alert.risk_level }}</span>
+                </div>
+                <div class="alert-item-body">
+                    From: <span style="font-family: monospace;">{{ alert.transaction.sender_wallet }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <span class="alert-item-amount">{{ "{:,.2f}".format(alert.transaction.amount) }} {{ alert.transaction.currency }}</span>
+                    <span class="alert-item-time">{{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        {% else: %}
+            <div style="padding: 3rem 1.5rem; text-align: center; color: var(--gray-dark); font-size: 0.9rem;">
+                No alerts found in the "{{ active_status }}" queue.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column: Detail Pane -->
+    <div class="alert-detail-pane">
+        {% if selected_alert %}
+            <div class="detail-section" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="font-size: 1.35rem; font-weight: 700; color: var(--primary);">{{ selected_alert.transaction_id }}</h2>
+                    <span style="font-size: 0.8rem; color: var(--gray-dark);">Alert ID: #{{ selected_alert.id }} &bull; Generated: {{ selected_alert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--gray-dark); font-weight: 600; margin-bottom: 0.25rem;">Model Risk Probability</div>
+                    <span class="badge badge-{{ selected_alert.risk_level.lower() }}" style="font-size: 1rem; padding: 0.4rem 0.8rem;">
+                        {{ "{:.1f}%".format(selected_alert.risk_score * 100) }} - {{ selected_alert.risk_level }} Risk
+                    </span>
+                </div>
+            </div>
+
+            <!-- Transaction Data Section -->
+            <div class="detail-section">
+                <h4>Transaction Overview</h4>
+                <div class="detail-grid">
+                    <div>
+                        <span class="detail-label">Sender Details:</span>
+                        <div class="detail-value">
+                            <strong>{{ selected_alert.transaction.sender_name }}</strong><br>
+                            <span style="font-family: monospace; font-size: 0.8rem; color: var(--gray-dark);">({{ selected_alert.transaction.sender_wallet }})</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Recipient Details:</span>
+                        <div class="detail-value">
+                            <strong>{{ selected_alert.transaction.recipient_name }}</strong><br>
+                            <span style="font-family: monospace; font-size: 0.8rem; color: var(--gray-dark);">({{ selected_alert.transaction.recipient_wallet }})</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Transfer Type:</span>
+                        <div class="detail-value">{{ selected_alert.transaction.payment_type }}</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Amount:</span>
+                        <div class="detail-value" style="font-weight: 700;">{{ "{:,.2f}".format(selected_alert.transaction.amount) }} {{ selected_alert.transaction.currency }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Behavioral Analytics Section -->
+            <div class="detail-section">
+                <h4>Behavioral Analytics (Engineered Features)</h4>
+                <div class="detail-grid">
+                    <div>
+                        <span class="detail-label">1-Hour Transaction Velocity:</span>
+                        <div class="detail-value">{{ selected_alert.transaction.velocity_1h }} transfers</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">24-Hour Cumulative Volume:</span>
+                        <div class="detail-value">{{ "{:,.2f}".format(selected_alert.transaction.daily_volume) }} {{ selected_alert.transaction.currency }}</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Unfamiliar Recipient Indicator:</span>
+                        <div class="detail-value">{{ "True (Anomalous link)" if selected_alert.transaction.is_unfamiliar else "False" }}</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">New Device Login:</span>
+                        <div class="detail-value">{{ "True (Anomalous hardware)" if selected_alert.transaction.is_new_device else "False" }}</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Account Age:</span>
+                        <div class="detail-value">{% if selected_alert.transaction.account_age_days is not none %}{{ selected_alert.transaction.account_age_days }} days since creation{% else %}Not recorded{% endif %}</div>
+                    </div>
+                    <div>
+                        <span class="detail-label">Execution Hour:</span>
+                        <div class="detail-value">{{ selected_alert.transaction.hour_of_day }}:00 HRS</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Forensic Case Summary Section (OpenRouter & NVIDIA NIM Copilot) -->
+            <div class="detail-section" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #f8fafc; padding: 1.25rem; border-radius: 8px; border: 1px solid #334155; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        <h4 style="margin: 0; color: #f8fafc; font-size: 1rem; font-weight: 600;">AI Forensic Case Summary</h4>
+                    </div>
+                    <span id="ai-provider-badge" class="badge" style="background-color: #0284c7; color: #fff; font-size: 0.75rem; padding: 0.25rem 0.5rem;">Generative AI Engine</span>
+                </div>
+                <div id="ai-summary-text" style="font-size: 0.9rem; line-height: 1.5; color: #cbd5e1; background: rgba(15, 23, 42, 0.6); padding: 0.85rem; border-radius: 6px; border-left: 3px solid #38bdf8;">
+                    Synthesizing transaction risk parameters...
+                </div>
+                <div style="margin-top: 0.75rem; text-align: right;">
+                    <button id="btn-generate-ai" onclick="generateAiSummary('{{ selected_alert.transaction_id }}')" class="btn btn-sm" style="background-color: #38bdf8; color: #0f172a; font-weight: 600; border: none; cursor: pointer;">
+                        Synthesize AI Explanation
+                    </button>
+                </div>
+            </div>
+
+            <!-- Model Explanation Section -->
+            <div class="detail-section">
+                {% if explanation %}
+                <h4>Model Explanation ({{ active_model }})</h4>
+                <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 0.85rem;">
+                    How much each input moved this transaction's fraud probability, from a
+                    {{ '%.1f'|format(explanation.base * 100) }}% baseline to {{ '%.1f'|format(explanation.score * 100) }}%.
+                    Taken from the model's own decision paths.
+                </p>
+                {% for f in explanation.factors if f.contribution|abs >= 0.005 %}
+                <div style="display: grid; grid-template-columns: 11rem 1fr 4.5rem; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <div><strong>{{ f.label }}</strong><br><span style="color: var(--gray-dark);">{{ f.value }}</span></div>
+                    <div style="background: var(--gray-light); border-radius: 3px; height: 0.6rem;">
+                        <div style="height: 100%; border-radius: 3px; width: {{ [ (f.contribution|abs) * 100 * 1.6, 100 ]|min }}%; background: {{ 'var(--danger)' if f.contribution > 0 else 'var(--success)' }};"></div>
+                    </div>
+                    <div style="text-align: right; font-weight: 600; color: {{ 'var(--danger)' if f.contribution > 0 else 'var(--success)' }};">
+                        {{ '%+.1f'|format(f.contribution * 100) }} pts
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <h4>Alert Reasons</h4>
+                <div class="reason-tags">
+                    {% for code in selected_alert.reason_codes.split(',') %}
+                        <span class="reason-tag">
+                            {% if code == 'SANCTIONED_INDIVIDUAL' %}Sanctions List Match
+                            {% elif code == 'HIGH_VELOCITY' %}High Frequency Transacting
+                            {% elif code == 'LARGE_AMOUNT' %}Large Outbound Amount
+                            {% elif code == 'HIGH_DAILY_VOLUME' %}High 24-Hour Volume
+                            {% elif code == 'NEW_DEVICE' %}New Device ID Used
+                            {% elif code == 'UNFAMILIAR_RECIPIENT' %}Transfer to Unfamiliar Wallet
+                            {% elif code in ('NEW_ACCOUNT', 'ACCOUNT_AGE') %}Account Age Pattern
+                            {% elif code == 'SUSPICIOUS_HOUR' %}Off-hours Execution
+                            {% else %}ML Anomaly Feature ({{ code }}){% endif %}
+                        </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Resolution & Action Section -->
+            <div class="detail-section" style="background-color: var(--bg); padding: 1.25rem; border-radius: 4px; border: 1px solid var(--border);">
+                <h4>Case Actions & Investigation Status</h4>
+                
+                {% if selected_alert.status == 'Pending' %}
+                    <form action="{{ url_for('update_alert', alert_id=selected_alert.id) }}" method="POST">
+                        <input type="hidden" name="action" value="investigate">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            Assign to Myself & Begin Investigation
+                        </button>
+                    </form>
+                {% elif selected_alert.status == 'Under Review' %}
+                    <form action="{{ url_for('update_alert', alert_id=selected_alert.id) }}" method="POST" id="resolution-form">
+                        <div class="form-group">
+                            <label for="notes" style="font-weight: 500;">Investigation Notes / Findings</label>
+                            <textarea id="notes" name="notes" rows="3" class="form-control" placeholder="Describe the outcome of wallet verification or user verification..." required></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <button type="submit" name="action" value="close_legitimate" class="btn btn-success" style="width: 100%;">
+                                Close as Legitimate
+                            </button>
+                            <button type="submit" name="action" value="close_fraudulent" class="btn btn-danger" style="width: 100%;">
+                                Confirm Laundering / Block
+                            </button>
+                        </div>
+                    </form>
+                {% elif selected_alert.status == 'Closed' %}
+                    <div style="font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 600; color: var(--gray-dark);">Assigned Analyst:</span>
+                            <span style="font-weight: 700;">{{ selected_alert.assigned_to }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <span style="font-weight: 600; color: var(--gray-dark);">Final Status:</span>
+                            <span class="badge badge-{{ selected_alert.transaction.status.lower() }}">{{ selected_alert.transaction.status }}</span>
+                        </div>
+                        <div style="border-top: 1px dashed var(--border); padding-top: 0.75rem;">
+                            <span style="font-weight: 600; color: var(--gray-dark); display: block; margin-bottom: 0.25rem;">Resolution Findings:</span>
+                            <p style="font-style: italic; background-color: var(--white); padding: 0.75rem; border: 1px solid var(--border); border-radius: 4px;">
+                                "{{ selected_alert.resolution_notes or 'No resolution details logged.' }}"
+                            </p>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        {% else: %}
+            <div style="text-align: center; color: var(--gray-dark); padding: 5rem 0;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 1rem; color: var(--border);">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p>No alert selected. Click an item in the queue to load details.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function generateAiSummary(txId) {
+    const textElem = document.getElementById('ai-summary-text');
+    const badgeElem = document.getElementById('ai-provider-badge');
+    const btn = document.getElementById('btn-generate-ai');
+    
+    if (!textElem || !btn) return;
+    
+    btn.disabled = true;
+    btn.innerText = 'Analyzing with LLM Engine...';
+    textElem.innerHTML = '<em>Connecting to OpenRouter / NVIDIA NIM microservices to analyze risk velocity...</em>';
+    
+    fetch('/api/ai/explain/' + txId)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                textElem.innerText = data.ai_summary;
+                if (badgeElem) badgeElem.innerText = 'Engine: ' + data.provider;
+            } else {
+                textElem.innerText = 'Error generating AI summary.';
+            }
+        })
+        .catch(err => {
+            textElem.innerText = 'Unable to contact AI inference gateway.';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = 'Re-synthesize AI Summary';
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    {% if selected_alert %}
+        generateAiSummary('{{ selected_alert.transaction_id }}');
+    {% endif %}
+});
+</script>
+{% endblock %}
+

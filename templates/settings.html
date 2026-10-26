@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">System Configuration</h1>
+        <div class="page-subtitle">Adjust machine learning classifiers, risk thresholds, and inspect model evaluations.</div>
+    </div>
+</div>
+
+<div class="alerts-layout" style="grid-template-columns: 1fr 1.2fr;">
+    <!-- Left: Configurations -->
+    <div class="card">
+        <form action="{{ url_for('settings') }}" method="POST">
+            <!-- Model Selection -->
+            <div class="settings-section">
+                <h3>Active Classifier</h3>
+                <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 1rem;">
+                    Select the machine learning model used to evaluate transaction risk in real time.
+                </p>
+                
+                <div class="form-group">
+                    <label for="active_model">Choose Classifier Model</label>
+                    <select id="active_model" name="active_model" class="form-control">
+                        {% for model_name in all_models %}
+                            <option value="{{ model_name }}" {{ 'selected' if model_name == active_model else '' }}>
+                                {{ model_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Risk Thresholds -->
+            <div class="settings-section">
+                <h3>ML Alert Thresholds</h3>
+                <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 1rem;">
+                    Adjust the probability cutoffs for risk tagging. High risk events trigger automatic security queue flags.
+                </p>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="medium_risk_threshold">Medium Risk Cutoff</label>
+                        <input type="number" step="0.05" min="0.05" max="0.95" id="medium_risk_threshold" name="medium_risk_threshold" class="form-control" value="0.30">
+                        <span style="font-size: 0.7rem; color: var(--gray-dark);">Flags as Medium Risk if score &ge; value</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="high_risk_threshold">High Risk Cutoff</label>
+                        <input type="number" step="0.05" min="0.05" max="0.95" id="high_risk_threshold" name="high_risk_threshold" class="form-control" value="0.70">
+                        <span style="font-size: 0.7rem; color: var(--gray-dark);">Flags as High Risk &amp; Alerts if score &ge; value</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Apply System Configurations</button>
+        </form>
+    </div>
+
+    <!-- Right: Model Evaluations (Table 4.1 in thesis) -->
+    <div class="card">
+        <h3 style="font-size: 1.15rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.25rem;">
+            Classifier Evaluation Results
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--gray-dark); margin-bottom: 1.25rem;">
+            Performance metrics calculated against the 20% validation split (1,000 transactions) during model training.
+        </p>
+        
+        <div class="table-responsive">
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Model Classifier</th>
+                        <th>Accuracy</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>F1-Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m_name, m_val in metrics.items() %}
+                    <tr style="{{ 'background-color: var(--accent-light); font-weight: 600;' if m_name == active_model else '' }}">
+                        <td style="color: var(--primary);">
+                            {{ m_name }}
+                            {% if m_name == active_model %}
+                                <span style="font-size:0.7rem; background-color:var(--accent); color:white; padding:0.1rem 0.3rem; border-radius:3px; margin-left:0.25rem; font-weight:normal; text-transform:uppercase;">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "{:.2f}%".format(m_val.accuracy * 100) }}</td>
+                        <td>{{ "{:.2f}%".format(m_val.precision * 100) }}</td>
+                        <td>{{ "{:.2f}%".format(m_val.recall * 100) }}</td>
+                        <td style="font-weight: 700; color: var(--black);">
+                            {{ "{:.2f}%".format(m_val.f1_score * 100) }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--gray-dark); padding: 1.5rem 0;">No metrics loaded. Train models first.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Explanation -->
+        <div style="margin-top: 1.5rem; background-color: var(--bg); border: 1px solid var(--border); padding: 1rem; border-radius: 4px; font-size: 0.8rem; color: var(--gray-dark);">
+            <h4 style="font-weight: 600; color: var(--black); margin-bottom: 0.25rem;">Understanding Metrics:</h4>
+            <ul style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                <li><strong>Precision:</strong> Percentage of flagged alerts that are truly anomalous (minimizes false alarms).</li>
+                <li><strong>Recall:</strong> Percentage of true anomalies successfully detected (minimizes undetected losses).</li>
+                <li><strong>F1-Score:</strong> Harmonic mean balancing precision and recall to assess aggregate classifier viability.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

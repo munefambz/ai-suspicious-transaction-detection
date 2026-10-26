@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AML System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Suspicious Transaction Detection Dashboard</h1>
+        <div class="page-subtitle">Security Operations Command Center | Active Model: <strong>{{ active_model }}</strong></div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--gray-dark); background-color: var(--white); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 4px;">
+        Last Updated: <span id="last-updated">Just now</span>
+    </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="card stats-card total-tx">
+        <div>
+            <div class="card-title">Total Screened Transactions<span class="hint-icon" data-hint="The total number of mobile money transactions processed and screened by the system.">i</span></div>
+            <div class="card-value">{{ "{:,}".format(total_transactions) }}</div>
+        </div>
+        <div class="card-subtext">All processed wallet transfers</div>
+    </div>
+    
+    <div class="card stats-card unusual-tx">
+        <div>
+            <div class="card-title">Suspicious Transactions<span class="hint-icon" data-hint="Transactions flagged with a medium or high risk score (exceeding 30%).">i</span></div>
+            <div class="card-value">{{ "{:,}".format(unusual_transactions) }}</div>
+        </div>
+        <div class="card-subtext">Risk score exceeding thresholds (>30%)</div>
+    </div>
+    
+    <div class="card stats-card pending-alerts">
+        <div>
+            <div class="card-title">Unassigned Alerts<span class="hint-icon" data-hint="Triggered alerts waiting for a security analyst to review them.">i</span></div>
+            <div class="card-value">{{ unassigned_alerts }}</div>
+        </div>
+        <div class="card-subtext">Awaiting analyst action queue</div>
+    </div>
+</div>
+
+<!-- Main Dashboard Visuals -->
+<div class="dashboard-grid">
+    <!-- Chart Column -->
+    <div class="card chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Recent Ingestion Risk Analysis</h3>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: var(--accent);"></span>
+                    <span>Risk Probability (%)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: var(--primary);"></span>
+                    <span>Amount (Scaled)</span>
+                </div>
+            </div>
+        </div>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="riskTimelineChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Donut/Distribution Column -->
+    <div class="card chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Case Verification Split</h3>
+        </div>
+        <div style="position: relative; height: 220px; width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 1rem;">
+            <canvas id="verificationDonutChart"></canvas>
+        </div>
+        <div style="font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
+                <span style="color:var(--success); font-weight:600;">● Legitimate:</span>
+                <span>{{ legitimate_count }} cases</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
+                <span style="color:var(--danger); font-weight:600;">● Suspicious:</span>
+                <span>{{ fraudulent_count }} cases</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span style="color:var(--warning); font-weight:600;">● Under Investigation:</span>
+                <span>{{ under_inv_count }} cases</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Section: Alerts Queue & Investigations -->
+<div class="dashboard-grid" style="grid-template-columns: 1fr 1.2fr;">
+    <!-- Alerts Ingestion Stream -->
+    <div class="card">
+        <div class="chart-header">
+            <h3 class="chart-title">Recent Ingested Alerts</h3>
+            <a href="{{ url_for('alerts') }}" style="font-size: 0.8rem; color: var(--accent); font-weight: 600; text-decoration: none;">View All queue &rarr;</a>
+        </div>
+        
+        {% if recent_alerts %}
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                {% for alert in recent_alerts %}
+                <div style="border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; background-color: var(--bg);">
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--primary);">
+                            {{ alert.transaction_id }} &bull; {{ alert.transaction.sender_name }} ({{ alert.transaction.sender_wallet }})
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--gray-dark); margin-top: 0.25rem;">
+                            Triggers: 
+                            {% for code in alert.reason_codes.split(',') %}
+                                <span class="badge" style="background-color: var(--white); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.65rem; font-weight:600; cursor:help; display:inline-flex; align-items:center;" 
+                                      title="{% if code == 'HIGH_VELOCITY' %}Multiple fast transfers in 1 hour{% elif code == 'LARGE_AMOUNT' %}Transfer amount exceeds limit{% elif code == 'NEW_DEVICE' %}Executed from a new device hardware{% elif code == 'UNFAMILIAR_RECIPIENT' %}Recipient wallet has never received from sender before{% elif code == 'NEW_ACCOUNT' %}Sender wallet is newly registered{% elif code == 'SUSPICIOUS_HOUR' %}Executed at an unusual hour{% elif code == 'SANCTIONED_INDIVIDUAL' %}Name matches international sanctions blacklist{% else %}Anomaly detected by ML model{% endif %}">
+                                    {{ code.replace('_', ' ') }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="badge badge-{{ alert.risk_level.lower() }}">{{ alert.risk_level }}</span>
+                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--black); margin-top: 0.25rem;">
+                            {{ alert.transaction.amount }} {{ alert.transaction.currency }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else: %}
+            <p style="font-size: 0.9rem; color: var(--gray-dark); text-align: center; padding: 2rem 0;">No active alerts triggered.</p>
+        {% endif %}
+    </div>
+
+    <!-- Active Investigation Progress -->
+    <div class="card">
+        <div class="chart-header">
+            <h3 class="chart-title">Active Investigations</h3>
+            <a href="{{ url_for('alerts', status='Under Review') }}" style="font-size: 0.8rem; color: var(--accent); font-weight: 600; text-decoration: none;">Audit Registry &rarr;</a>
+        </div>
+        
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tx ID</th>
+                        <th>Target Wallet</th>
+                        <th>Assigned Analyst</th>
+                        <th>Progress</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if ongoing_investigations %}
+                        {% for alert in ongoing_investigations %}
+                        <tr>
+                            <td style="font-weight: 600; color: var(--primary);">{{ alert.transaction_id }}</td>
+                            <td>{{ alert.transaction.sender_wallet }}</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
+                                    <div style="width:22px; height:22px; border-radius:50%; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; font-size:0.7rem; font-weight:700;">
+                                        {{ alert.assigned_to[0].upper() if alert.assigned_to else '?' }}
+                                    </div>
+                                    <span>{{ alert.assigned_to or 'Unassigned' }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <!-- Custom Status Indicators simulating progress stages -->
+                                <div class="investigation-dots">
+                                    <span class="dot active"></span>
+                                    <span class="dot active"></span>
+                                    <span class="dot active"></span>
+                                    <span class="dot"></span>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('alerts', status='Under Review') }}" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem; font-size:0.75rem;">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else: %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--gray-dark); padding: 1.5rem 0;">No active reviews in progress.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- ChartJS Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // 1. Timeline Risk Chart
+        const timelineCtx = document.getElementById('riskTimelineChart').getContext('2d');
+        const timelineLabels = {{ chart_labels | tojson }};
+        const amounts = {{ chart_amounts | tojson }};
+        const riskScores = {{ chart_risks | tojson }};
+        
+        // Scale amounts for visualization (divide by max value * 100 for percentage scale comparison)
+        const maxAmount = Math.max(...amounts, 1);
+        const scaledAmounts = amounts.map(amt => (amt / maxAmount) * 100);
+        
+        new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: timelineLabels,
+                datasets: [
+                    {
+                        label: 'Inference Risk Score (%)',
+                        data: riskScores.map(score => score * 100),
+                        borderColor: '#3b82f6', // var(--accent)
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Transaction Value (Relative)',
+                        data: scaledAmounts,
+                        borderColor: '#1e3a8a', // var(--primary)
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            font: { size: 10 },
+                            callback: function(value) { return value + "%"; }
+                        },
+                        grid: { borderDash: [2, 2], color: '#e5e7eb' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: false,
+                        position: 'right',
+                        min: 0,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // 2. Verification Donut Chart
+        const donutCtx = document.getElementById('verificationDonutChart').getContext('2d');
+        const legitimate = {{ legitimate_count }};
+        const fraudulent = {{ fraudulent_count }};
+        const underInvestigation = {{ under_inv_count }};
+        
+        new Chart(donutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Legitimate', 'Suspicious', 'Under Review'],
+                datasets: [{
+                    data: [legitimate, fraudulent, underInvestigation],
+                    backgroundColor: [
+                        '#10b981', // var(--success)
+                        '#ef4444', // var(--danger)
+                        '#f59e0b'  // var(--warning)
+                    ],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+        
+        // Set initial last updated time
+        const initialTime = new Date().toLocaleTimeString();
+        document.getElementById('last-updated').textContent = 'Last updated at ' + initialTime;
+        
+        // Auto-refresh last updated tag
+        setInterval(() => {
+            const time = new Date().toLocaleTimeString();
+            document.getElementById('last-updated').textContent = 'Last updated at ' + time;
+        }, 30000);
+    });
+</script>
+{% endblock %}

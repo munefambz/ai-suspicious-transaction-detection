@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AML Suspicious Transaction Detection{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    {% if request.endpoint != 'login' %}
+    <header>
+        <div class="nav-container">
+            <a href="{{ url_for('dashboard') }}" class="logo-section">
+                <!-- Inline SVG Shield Icon -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>AML System</span>
+            </a>
+            
+            <nav>
+                <ul class="nav-links">
+                    <li class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
+                        <a href="{{ url_for('dashboard') }}">Home</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'alerts' else '' }}">
+                        <a href="{{ url_for('alerts') }}">Investigations</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'transactions' else '' }}">
+                        <a href="{{ url_for('transactions') }}">Transactions</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'assistant' else '' }}">
+                        <a href="{{ url_for('assistant') }}">AI Assistant</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'audit_logs' else '' }}">
+                        <a href="{{ url_for('audit_logs') }}">Audit Logs</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'settings' else '' }}">
+                        <a href="{{ url_for('settings') }}">Settings</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'api_docs' else '' }}">
+                        <a href="{{ url_for('api_docs') }}">API Docs</a>
+                    </li>
+                    <li class="{{ 'active' if request.endpoint == 'sanctions' else '' }}">
+                        <a href="{{ url_for('sanctions') }}">Sanctions</a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="user-profile">
+                <div class="user-info">
+                    <div class="username">{{ current_user }}</div>
+                    <div class="role">{{ current_role }}</div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
+    <main class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            <span>{{ message }}</span>
+                            <button onclick="this.parentElement.remove()" style="background:none; border:none; color:inherit; font-size:1.2rem; cursor:pointer; font-weight:700;">&times;</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
